@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dot. period.</title>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore.js"></script>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f8d7da;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 400px;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        h1 {
+            text-align: center;
+            color: #e83e8c;
+            font-weight: 600;
+            font-size: 24px;
+        }
+
+        label {
+            font-weight: 500;
+            color: #6c757d;
+            font-size: 14px;
+        }
+
+        input[type="date"],
+        input[type="number"],
+        input[type="text"],
+        button {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 2px solid #e83e8c;
+            border-radius: 8px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: #e83e8c;
+            color: white;
+            cursor: pointer;
+            border: none;
+        }
+
+        button:hover {
+            background-color: #d6336c;
+        }
+
+        #predictionResult {
+            text-align: center;
+            font-weight: bold;
+            margin-top: 20px;
+            color: #e83e8c;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 14px;
+            color: #6c757d;
+        }
+
+        .footer a {
+            color: #e83e8c;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        #results ul {
+            padding: 0;
+            list-style-type: none;
+        }
+
+        #results li {
+            background-color: #f1f1f1;
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        /* Chatbot Section */
+        .chatbot-container {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8d7da;
+            border-radius: 8px;
+        }
+
+        .chatbot-input {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 8px;
+            border: 2px solid #e83e8c;
+        }
+
+        .chatbot-response {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f1f1f1;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>dot. period.</h1>
+
+        <!-- Form to accept user input -->
+        <form id="cycleForm">
+            <label for="cycleLength">Average Cycle Length (in days):</label>
+            <input type="number" id="cycleLength" required><br>
+
+            <label for="mensesLength">Average Menses Length (in days):</label>
+            <input type="number" id="mensesLength" required><br>
+
+            <label for="lastStartDate">Last Menses Start Date:</label>
+            <input type="date" id="lastStartDate" required><br>
+
+            <label for="lastEndDate">Last Menses End Date:</label>
+            <input type="date" id="lastEndDate" required><br>
+
+            <button type="submit">Submit</button>
+        </form>
+
+        <!-- Display next periods and phase -->
+        <div id="results">
+            <h3>Next Period Dates and Cycle Lengths:</h3>
+            <ul id="periodDates"></ul>
+            <div id="phaseDisplay"></div>
+        </div>
+
+        <!-- Chatbot -->
+        <div class="chatbot-container">
+            <h3>Chat with Dot. Period Bot!</h3>
+            <input type="text" id="chatInput" class="chatbot-input" placeholder="Ask about your phase...">
+            <div id="chatResponse" class="chatbot-response"></div>
+        </div>
+    </div>
+
+    <script>
+        // Event listener for form submission
+        document.getElementById('cycleForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const cycleLength = parseInt(document.getElementById('cycleLength').value);
+            const mensesLength = parseInt(document.getElementById('mensesLength').value);
+            const lastStartDate = new Date(document.getElementById('lastStartDate').value);
+            const lastEndDate = new Date(document.getElementById('lastEndDate').value);
+
+            // Calculate next 5 periods' start dates and cycle lengths
+            const nextPeriodDates = calculateNextPeriods(lastStartDate, cycleLength, 5);
+
+            // Display next periods and cycle phase
+            displayNextPeriods(nextPeriodDates, lastStartDate, cycleLength);
+        });
+
+        function calculateNextPeriods(lastStartDate, cycleLength, numPeriods) {
+            const nextPeriods = [];
+            for (let i = 1; i <= numPeriods; i++) {
+                let nextStartDate = new Date(lastStartDate);
+                nextStartDate.setDate(nextStartDate.getDate() + (cycleLength * i));
+
+                nextPeriods.push({
+                    startDate: nextStartDate.toLocaleDateString(),
+                    cycleLength: cycleLength
+                });
+            }
+            return nextPeriods;
+        }
+
+        function displayNextPeriods(nextPeriods, lastStartDate, cycleLength) {
+            const periodList = document.getElementById('periodDates');
+            periodList.innerHTML = ''; // Clear previous results
+
+            nextPeriods.forEach(period => {
+                const listItem = document.createElement('li');
+                listItem.textContent = `Period starts on ${period.startDate} - Cycle Length: ${period.cycleLength} days`;
+                periodList.appendChild(listItem);
+            });
+
+            // Display the current phase
+            const phaseDisplay = document.getElementById('phaseDisplay');
+            const phase = calculatePhase(lastStartDate, cycleLength);
+            phaseDisplay.innerHTML = `<strong>Current Phase:</strong> ${phase}`;
+        }
+
+        function calculatePhase(lastStartDate, cycleLength) {
+            const today = new Date();
+            const diffDays = Math.floor((today - lastStartDate) / (1000 * 3600 * 24));
+
+            const cycleDay = diffDays % cycleLength;
+
+            if (cycleDay <= 5) {
+                return "Menstrual Phase";
+            } else if (cycleDay <= (cycleLength - 14)) {
+                return "Follicular Phase";
+            } else if (cycleDay <= (cycleLength - 7)) {
+                return "Ovulation Phase";
+            } else {
+                return "Luteal Phase";
+            }
+        }
+
+        // Simple chatbot logic for phase-related queries
+        document.getElementById('chatInput').addEventListener('input', function() {
+            const inputText = document.getElementById('chatInput').value.toLowerCase();
+            const chatResponse = document.getElementById('chatResponse');
+
+            // Checking keywords for each phase-related query
+            if (inputText.includes("diet") && inputText.includes("follicular")) {
+                chatResponse.textContent = "In the follicular phase, focus on lean protein, leafy greens, and healthy fats.";
+            } else if (inputText.includes("diet") && inputText.includes("luteal")) {
+                chatResponse.textContent = "During the luteal phase, try to avoid refined sugars and opt for complex carbs for energy.";
+            } else if (inputText.includes("diet") && inputText.includes("menstrual")) {
+                chatResponse.textContent = "During menstruation, iron-rich foods like spinach, red meat, and legumes are great!";
+            } else if (inputText.includes("diet") && inputText.includes("ovulation")) {
+                chatResponse.textContent = "In the ovulation phase, increase protein intake and add zinc-rich foods like seeds.";
+            } else if (inputText.includes("skincare") && inputText.includes("follicular")) {
+                chatResponse.textContent = "In the follicular phase, opt for gentle exfoliation and hydration!";
+            } else if (inputText.includes("skincare") && inputText.includes("luteal")) {
+                chatResponse.textContent = "In the luteal phase, focus on balancing oily skin and using soothing products.";
+            } else if (inputText.includes("energy") && inputText.includes("follicular")) {
+                chatResponse.textContent = "You'll likely feel energetic in the follicular phase! It's a good time for intense workouts.";
+            } else if (inputText.includes("energy") && inputText.includes("luteal")) {
+                chatResponse.textContent = "Energy may dip during the luteal phase, consider lighter exercises like yoga or walking.";
+            } else if (inputText.includes("workout") && inputText.includes("follicular")) {
+                chatResponse.textContent = "High-intensity workouts like HIIT and strength training are great during the follicular phase.";
+            } else if (inputText.includes("workout") && inputText.includes("luteal")) {
+                chatResponse.textContent = "Opt for low to moderate-intensity workouts, such as walking, yoga, or Pilates, in the luteal phase.";}
+	   
+	else if (inputText.includes("diet") && inputText.includes("follicular")) {
+    chatResponse.textContent = "In the follicular phase, focus on lean protein, leafy greens, and healthy fats.";
+} else if (inputText.includes("diet") && inputText.includes("luteal")) {
+    chatResponse.textContent = "During the luteal phase, try to avoid refined sugars and opt for complex carbs for energy.";
+} else if (inputText.includes("diet") && inputText.includes("menstrual")) {
+    chatResponse.textContent = "During menstruation, iron-rich foods like spinach, red meat, and legumes are great!";
+} else if (inputText.includes("diet") && inputText.includes("ovulation")) {
+    chatResponse.textContent = "In the ovulation phase, increase protein intake and add zinc-rich foods like seeds.";
+} else if (inputText.includes("skincare") && inputText.includes("follicular")) {
+    chatResponse.textContent = "In the follicular phase, opt for gentle exfoliation and hydration!";
+} else if (inputText.includes("skincare") && inputText.includes("luteal")) {
+    chatResponse.textContent = "In the luteal phase, focus on balancing oily skin and using soothing products.";
+} else if (inputText.includes("skincare") && inputText.includes("menstrual")) {
+    chatResponse.textContent = "During your period, stick to a simple skincare routine with soothing, non-irritating products.";
+} else if (inputText.includes("skincare") && inputText.includes("ovulation")) {
+    chatResponse.textContent = "During ovulation, you might experience glowing skin. Hydrate and use lightweight moisturizers.";
+} else if (inputText.includes("energy") && inputText.includes("follicular")) {
+    chatResponse.textContent = "You'll likely feel energetic in the follicular phase! It's a good time for intense workouts.";
+} else if (inputText.includes("energy") && inputText.includes("luteal")) {
+    chatResponse.textContent = "Energy may dip during the luteal phase, consider lighter exercises like yoga or walking.";
+} else if (inputText.includes("energy") && inputText.includes("menstrual")) {
+    chatResponse.textContent = "During menstruation, you might feel low on energy. Rest and light activity are recommended.";
+} else if (inputText.includes("energy") && inputText.includes("ovulation")) {
+    chatResponse.textContent = "In the ovulation phase, you'll feel your peak energy. Great time for endurance training!";
+} else if (inputText.includes("workout") && inputText.includes("follicular")) {
+    chatResponse.textContent = "High-intensity workouts like HIIT and strength training are great during the follicular phase.";
+} else if (inputText.includes("workout") && inputText.includes("luteal")) {
+    chatResponse.textContent = "Opt for low to moderate-intensity workouts, such as walking, yoga, or Pilates, in the luteal phase.";
+} else if (inputText.includes("workout") && inputText.includes("menstrual")) {
+    chatResponse.textContent = "During your period, try to stick to light workouts like walking or stretching.";
+} else if (inputText.includes("workout") && inputText.includes("ovulation")) {
+    chatResponse.textContent = "It's a great time for high-intensity workouts during ovulation, especially cardio and strength training.";
+} else if (inputText.includes("sleep") && inputText.includes("follicular")) {
+    chatResponse.textContent = "In the follicular phase, you might find it easier to wake up early. Try to keep a consistent sleep routine.";
+} else if (inputText.includes("sleep") && inputText.includes("luteal")) {
+    chatResponse.textContent = "Sleep might be affected during the luteal phase. Try a relaxing bedtime routine to improve quality.";
+} else if (inputText.includes("sleep") && inputText.includes("menstrual")) {
+    chatResponse.textContent = "During menstruation, you may need extra rest. Ensure a comfortable sleep environment.";
+} else if (inputText.includes("sleep") && inputText.includes("ovulation")) {
+    chatResponse.textContent = "You might feel well-rested during ovulation, with balanced energy levels throughout the day.";
+} else if (inputText.includes("mood") && inputText.includes("follicular")) {
+    chatResponse.textContent = "Mood tends to be positive and optimistic in the follicular phase. It's a good time for socializing.";
+} else if (inputText.includes("mood") && inputText.includes("luteal")) {
+    chatResponse.textContent = "Mood swings can happen during the luteal phase. Relaxation techniques like meditation can help.";
+} else if (inputText.includes("mood") && inputText.includes("menstrual")) {
+    chatResponse.textContent = "Mood may fluctuate during menstruation. Self-care and staying hydrated can improve your well-being.";
+} else if (inputText.includes("mood") && inputText.includes("ovulation")) {
+    chatResponse.textContent = "You're likely to feel confident and social during ovulation. It's a great time for connecting with others.";
+} else if (inputText.includes("haircare") && inputText.includes("follicular")) {
+    chatResponse.textContent = "In the follicular phase, hair might be in its best condition. Opt for lightweight products.";
+} else if (inputText.includes("haircare") && inputText.includes("luteal")) {
+    chatResponse.textContent = "During the luteal phase, your hair might feel drier. Deep conditioning and moisturizing are key.";
+} else if (inputText.includes("haircare") && inputText.includes("menstrual")) {
+    chatResponse.textContent = "Your hair might feel greasy or limp during your period. Dry shampoo can help during this phase.";
+} else if (inputText.includes("haircare") && inputText.includes("ovulation")) {
+    chatResponse.textContent = "During ovulation, your hair may be more voluminous. Use light styling products to keep it looking fresh.";
+} else if (inputText.includes("weight") && inputText.includes("follicular")) {
+    chatResponse.textContent = "In the follicular phase, weight loss can be easier due to higher energy levels and metabolism.";
+} else if (inputText.includes("weight") && inputText.includes("luteal")) {
+    chatResponse.textContent = "Weight gain is common during the luteal phase due to water retention. Stay hydrated and avoid salty foods.";
+} else if (inputText.includes("weight") && inputText.includes("menstrual")) {
+    chatResponse.textContent = "You may notice bloating during menstruation. Try to stick to a balanced diet and light exercise.";
+} else if (inputText.includes("weight") && inputText.includes("ovulation")) {
+    chatResponse.textContent = "Weight management can be easier during ovulation when your metabolism is at its peak.";
+} else if (inputText.includes("exercise") && inputText.includes("follicular")) {
+    chatResponse.textContent = "The follicular phase is great for pushing yourself in the gym. Go for intense workouts like weight training.";
+} else if (inputText.includes("exercise") && inputText.includes("luteal")) {
+    chatResponse.textContent = "During the luteal phase, try lower-impact activities like yoga or swimming.";
+} else if (inputText.includes("exercise") && inputText.includes("menstrual")) {
+    chatResponse.textContent = "During your period, light stretching, walking, or yoga can be beneficial.";
+} else if (inputText.includes("exercise") && inputText.includes("ovulation")) {
+    chatResponse.textContent = "Ovulation is perfect for cardio or intense HIIT sessions. Your energy levels will peak!";
+            } 
+// Additional chatbot logic for pregnancy, mental health, and more
+
+// Pregnancy-related questions
+else if (inputText.includes("pregnancy") && inputText.includes("signs")) {
+    chatResponse.textContent = "Early signs of pregnancy can include missed periods, nausea, fatigue, and breast tenderness.";
+} else if (inputText.includes("pregnancy") && inputText.includes("test")) {
+    chatResponse.textContent = "A home pregnancy test can detect pregnancy about 10 days after a missed period. For accuracy, take the test in the morning when your urine is concentrated.";
+} else if (inputText.includes("pregnancy") && inputText.includes("symptoms")) {
+    chatResponse.textContent = "Common pregnancy symptoms include fatigue, nausea, frequent urination, and breast tenderness.";
+} else if (inputText.includes("pregnancy") && inputText.includes("when to test")) {
+    chatResponse.textContent = "You can take a pregnancy test as early as the first day of a missed period. For best results, wait a week after the missed period.";
+} else if (inputText.includes("pregnancy") && inputText.includes("period")) {
+    chatResponse.textContent = "If you're pregnant, you may miss your period, but some people still experience light spotting.";
+} else if (inputText.includes("pregnancy") && inputText.includes("ovulation")) {
+    chatResponse.textContent = "Pregnancy can only occur if sperm fertilizes an egg released during ovulation, typically around the middle of your cycle.";
+} else if (inputText.includes("pregnancy") && inputText.includes("after ovulation")) {
+    chatResponse.textContent = "Pregnancy can happen after ovulation if sperm fertilizes the egg within 12-24 hours after it's released.";
+} else if (inputText.includes("pregnancy") && inputText.includes("early") && inputText.includes("test")) {
+    chatResponse.textContent = "An early pregnancy test may show results before your missed period, but it's most accurate after you've missed a period.";
+
+  
+// Mental Health-related questions
+} else if (inputText.includes("mental health") && inputText.includes("period")) {
+    chatResponse.textContent = "Hormonal fluctuations throughout the menstrual cycle can affect mental health. PMS and PMDD can cause mood swings, anxiety, or depression.";
+} else if (inputText.includes("mental health") && inputText.includes("mood swings")) {
+    chatResponse.textContent = "Mood swings are common during the luteal phase, which happens after ovulation and just before menstruation due to fluctuating hormones.";
+} else if (inputText.includes("mental health") && inputText.includes("PMS")) {
+    chatResponse.textContent = "PMS (Premenstrual Syndrome) includes symptoms like irritability, fatigue, anxiety, and mood swings that occur before your period starts.";
+} else if (inputText.includes("mental health") && inputText.includes("PMDD")) {
+    chatResponse.textContent = "PMDD (Premenstrual Dysphoric Disorder) is a more severe form of PMS, causing severe mood changes, irritability, and even depression.";
+} else if (inputText.includes("mental health") && inputText.includes("stress")) {
+    chatResponse.textContent = "Stress can affect your cycle and your mood. Try stress-reduction techniques like meditation, yoga, or deep breathing exercises.";
+} else if (inputText.includes("mental health") && inputText.includes("anxiety")) {
+    chatResponse.textContent = "Anxiety can worsen during certain phases, especially the luteal phase when hormone levels fluctuate. Try deep breathing or mindfulness techniques.";
+} else if (inputText.includes("mental health") && inputText.includes("depression")) {
+    chatResponse.textContent = "Hormonal fluctuations during your menstrual cycle can contribute to feelings of depression, especially before your period (PMS or PMDD).";
+} else if (inputText.includes("mental health") && inputText.includes("self-care")) {
+    chatResponse.textContent = "Self-care during your cycle includes getting enough sleep, eating a balanced diet, exercising, and taking time for relaxation and stress relief.";
+
+// Menstrual Health-related questions
+} else if (inputText.includes("menstrual health") || inputText.includes("irregular period")) {
+    chatResponse.textContent = "Irregular periods can be caused by hormonal imbalances, stress, diet, or underlying health conditions like PCOS. Consult your doctor for an accurate diagnosis.";
+} else if (inputText.includes("menstrual health") || inputText.includes("heavy period")) {
+    chatResponse.textContent = "A heavy period can be caused by conditions like fibroids, endometriosis, or hormonal imbalances. If it's affecting your daily life, it's a good idea to see a healthcare provider.";
+} else if (inputText.includes("menstrual health") || inputText.includes("painful period")) {
+    chatResponse.textContent = "Painful periods (dysmenorrhea) are common, but severe pain may indicate conditions like endometriosis or fibroids. Over-the-counter pain relievers or heat pads can help.";
+} else if (inputText.includes("symptoms") && inputText.includes("endometriosis")) {
+    chatResponse.textContent = "Endometriosis is a condition where tissue similar to the uterine lining grows outside the uterus, leading to pain, especially during menstruation.";
+} else if (inputText.includes("menstrual health") && inputText.includes("PCOS")) {
+    chatResponse.textContent = "Polycystic Ovary Syndrome (PCOS) is a hormonal disorder that can cause irregular periods, weight gain, and excess hair growth.";
+} else if (inputText.includes("menstrual health") && inputText.includes("fibroids")) {
+    chatResponse.textContent = "Fibroids are non-cancerous growths in the uterus that can cause heavy bleeding, pain, and reproductive challenges.";
+} else if (inputText.includes("menstrual health") && inputText.includes("ovarian cysts")) {
+    chatResponse.textContent = "Ovarian cysts are fluid-filled sacs that develop on the ovaries. Most are harmless, but some can cause pain or affect fertility.";
+} else if (inputText.includes("menstrual health") && inputText.includes("vaginal discharge")) {
+    chatResponse.textContent = "Vaginal discharge is normal, but changes in color, consistency, or odor could indicate an infection or other health concerns.";
+} else if (inputText.includes("menstrual health") && inputText.includes("vaginal dryness")) {
+    chatResponse.textContent = "Vaginal dryness can occur due to hormonal changes, especially during perimenopause. Using lubricants or moisturizers can help.";
+} else if (inputText.includes("menstrual health") && inputText.includes("bleeding between periods")) {
+    chatResponse.textContent = "Bleeding between periods can be caused by hormonal fluctuations, fibroids, or other health conditions. It's best to consult a doctor.";
+} else if (inputText.includes("menstrual health") && inputText.includes("menopause")) {
+    chatResponse.textContent = "Menopause is the time when a woman's period stops permanently, typically occurring between 45-55 years. Symptoms can include hot flashes, mood changes, and sleep disturbances.";
+
+// General reproductive health
+} else if (inputText.includes("reproductive health") && inputText.includes("fertility")) {
+    chatResponse.textContent = "Fertility is most prominent during the ovulation phase of your cycle. If you're trying to conceive, it's important to track your ovulation.";
+} else if (inputText.includes("reproductive health") && inputText.includes("contraception")) {
+    chatResponse.textContent = "Contraception options vary, including pills, IUDs, condoms, and more. Consult your healthcare provider to find what's right for you.";
+} else if (inputText.includes("reproductive health") && inputText.includes("STI")) {
+    chatResponse.textContent = "STIs (Sexually Transmitted Infections) can be prevented with safe sex practices, including condoms. Regular testing is important for sexually active individuals.";
+} else if (inputText.includes("reproductive health") && inputText.includes("ovulation")) {
+    chatResponse.textContent = "Ovulation typically occurs around the middle of your menstrual cycle. It's when an egg is released from the ovary and is available for fertilization.";
+} else if (inputText.includes("reproductive health") && inputText.includes("hormones")) {
+    chatResponse.textContent = "Hormones like estrogen, progesterone, and luteinizing hormone (LH) regulate your menstrual cycle and overall reproductive health.";
+} else if (inputText.includes("reproductive health") && inputText.includes("egg freezing")) {
+    chatResponse.textContent = "Egg freezing is a process where a woman's eggs are harvested and preserved for future use, offering fertility preservation options.";
+}
+
+else {
+                chatResponse.textContent = "Sorry, I didn't quite get that. Please ask something else related to your phase!";
+            }
+        });
+    </script>
+</body>
+</html>
